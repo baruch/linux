@@ -1151,6 +1151,7 @@ void init_numa_balancing(unsigned long clone_flags, struct task_struct *p)
 			mm->numa_scan_seq = 0;
 		}
 	}
+	p->numa_balancing		= 1;
 	p->node_stamp			= 0;
 	p->numa_scan_seq		= mm ? mm->numa_scan_seq : 0;
 	p->numa_scan_period		= sysctl_numa_balancing_scan_delay;
@@ -2409,6 +2410,9 @@ void task_numa_fault(int last_cpupid, int mem_node, int pages, int flags)
 	if (!static_branch_likely(&sched_numa_balancing))
 		return;
 
+    if (!p->numa_balancing)
+        return;
+
 	/* for example, ksmd faulting in a user's mm */
 	if (!p->mm)
 		return;
@@ -2640,7 +2644,7 @@ void task_tick_numa(struct rq *rq, struct task_struct *curr)
 	/*
 	 * We don't care about NUMA placement if we don't have memory.
 	 */
-	if (!curr->mm || (curr->flags & PF_EXITING) || work->next != work)
+	if (!curr->mm || (curr->flags & PF_EXITING) || work->next != work || !curr->numa_balancing)
 		return;
 
 	/*

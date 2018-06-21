@@ -1866,3 +1866,75 @@ const struct file_operations proc_tid_numa_maps_operations = {
 	.release	= proc_map_release,
 };
 #endif /* CONFIG_NUMA */
+
+#ifdef CONFIG_NUMA_BALANCING
+static ssize_t numa_balancing_read(struct file *file, char __user *buf, size_t count,
+		loff_t *ppos)
+{
+	struct task_struct *task = get_proc_task(file_inode(file));
+	char buffer[PROC_NUMBUF];
+	int numa_balancing;
+	size_t len;
+
+	if (!task)
+		return -ESRCH;
+	numa_balancing = task->numa_balancing;
+	put_task_struct(task);
+	len = snprintf(buffer, sizeof(buffer), "%d\n", numa_balancing);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static int __set_numa_balancing(struct file *file, int numa_balancing)
+{
+	struct task_struct *task;
+
+	task = get_proc_task(file_inode(file));
+	if (!task)
+		return -ESRCH;
+
+	task->numa_balancing = numa_balancing;
+
+	put_task_struct(task);
+	return 0;
+}
+
+static ssize_t numa_balancing_write(struct file *file, const char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	char buffer[PROC_NUMBUF];
+	int numa_balancing;
+	int err;
+
+	memset(buffer, 0, sizeof(buffer));
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, buf, count)) {
+		err = -EFAULT;
+		goto out;
+	}
+
+	err = kstrtoint(strstrip(buffer), 0, &numa_balancing);
+	if (err)
+		goto out;
+	if ((numa_balancing < 0 || numa_balancing > 1) {
+		err = -EINVAL;
+		goto out;
+	}
+
+	err = __set_numa_balancing(file, numa_balancing);
+out:
+	return err < 0 ? err : count;
+}
+
+const struct file_operations proc_pid_numa_balancing = {
+	.read		= numa_balancing_read,
+	.write		= numa_balancing_write,
+	.llseek		= generic_file_llseek,
+};
+
+const struct file_operations proc_tid_numa_balancing = {
+	.read		= numa_balancing_read,
+	.write		= numa_balancing_write,
+	.llseek		= generic_file_llseek,
+};
+#endif /* CONFIG_NUMA_BALANCING */
